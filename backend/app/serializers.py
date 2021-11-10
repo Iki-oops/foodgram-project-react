@@ -1,6 +1,4 @@
-from django.core import validators
 from rest_framework import serializers
-from rest_framework.validators import UniqueTogetherValidator
 
 from .fields import Base64ImageField
 from .models import (Favorite, Ingredient, Recipe, RecipeIngredient, Shopping,
