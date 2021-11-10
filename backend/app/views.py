@@ -1,34 +1,24 @@
-from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
-from .filters import RecipeFilter
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, status
-from rest_framework import permissions
+from rest_framework import filters, permissions, status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import permissions, filters
 
-from .permissions import AnonUserPermission, CurrentUserPermission
-
-from .pagination import LimitPagination
+from .filters import RecipeFilter
 from .mixins import UserModelMixin
-from .models import Subscribe, Tag, Ingredient, Recipe, Favorite, User, Shopping
-from .serializers import (
-    AddRecipeInShoppingSerializer,
-    TagSerializer,
-    IngredientSerializer,
-    RecipeSerializer,
-    RecipePostSerializer,
-    FavoriteSerializer,
-    EmailTokenLogin,
-    UserSerializer,
-    SetPasswordSerializer,
-    SubscriptionsRecipesSerializer,
-    UserWithRecipeSerializer,
-    ShoppingSerializer,
-)
+from .models import (Favorite, Ingredient, Recipe, Shopping, Subscribe, Tag,
+                     User)
+from .pagination import LimitPagination
+from .permissions import AnonUserPermission, CurrentUserPermission
+from .serializers import (AddRecipeInShoppingSerializer, EmailTokenLogin,
+                          FavoriteSerializer, IngredientSerializer,
+                          RecipePostSerializer, RecipeSerializer,
+                          SetPasswordSerializer, ShoppingSerializer,
+                          SubscriptionsRecipesSerializer, TagSerializer,
+                          UserSerializer, UserWithRecipeSerializer)
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -68,21 +58,25 @@ class RecipeViewSet(viewsets.ModelViewSet):
         permission_classes=[permissions.IsAuthenticated,])
     def favorite(self, request, pk):
         recipe = get_object_or_404(Recipe, id=pk)
-        favorite, is_created = Favorite.objects.get_or_create(
+        try:
+            favorite = Favorite.objects.get(
                 user=request.user,
                 recipe=recipe
             )
-        if request.method == 'GET':
-            if is_created:
-                serializer = FavoriteSerializer(favorite)
-                return Response(
-                    data=serializer.data, status=status.HTTP_201_CREATED)
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+        except Favorite.DoesNotExist:
+            favorite = None
 
-        favorite.delete()
-        if is_created:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        if request.method == 'GET' and not favorite:
+            favorite = Favorite.objects.create(
+                user=request.user,
+                recipe=recipe
+            )
+            serializer = FavoriteSerializer(favorite)
+            return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+        elif request.method == 'DELETE' and favorite:
+            favorite.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
     
     @action(
         methods=['GET'],
@@ -102,26 +96,32 @@ class RecipeViewSet(viewsets.ModelViewSet):
         permission_classes=[permissions.IsAuthenticated,])
     def shopping_cart(self, request, pk):
         recipe = get_object_or_404(Recipe, id=pk)
-        shopping, created = Shopping.objects.get_or_create(
-            user=request.user,
-            recipe=recipe
-        )
-        if request.method == 'GET':
-            if created:
-                serializer = AddRecipeInShoppingSerializer(shopping)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        shopping.delete()
-        if created:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            shopping = Shopping.objects.get(
+                user=request.user,
+                recipe=recipe
+            )
+        except Shopping.DoesNotExist:
+            shopping = None
+
+        if request.method == 'GET' and not shopping:
+            shopping = Shopping.objects.create(
+                user = request.user,
+                recipe=recipe
+            )
+            serializer = AddRecipeInShoppingSerializer(shopping)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        elif request.method == 'DELETE' and shopping:
+            shopping.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 # Пользователи и токены
 class UserViewSet(UserModelMixin):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [permissions.AllowAny,]
     pagination_class = LimitPagination
 
     @action(
@@ -141,13 +141,13 @@ class UserViewSet(UserModelMixin):
         serializer.is_valid(raise_exception=True)
         user = request.user
         check_password = user.check_password(
-            serializer.data['current_password']
+            serializer.validated_data.get('new_password')
         )
         if not check_password:
             return Response(
                 data={'message': 'Пароль не совпадает'},
                 status=status.HTTP_400_BAD_REQUEST)
-        user.set_password(serializer.data['new_password'])
+        user.set_password(serializer.validated_data.get('new_password'))
         user.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -166,9 +166,9 @@ class UserViewSet(UserModelMixin):
         if not recipes_limit.isdigit():
             return Response(serializer.data)
 
-        for i in range(len(serializer.data)):
-            recipes = serializer.data[i]['recipes'][:int(recipes_limit)]
-            serializer.data[i]['recipes'] = recipes
+        for item in serializer.data:
+            recipes = item['recipes'][:int(recipes_limit)]
+            item['recipes'] = recipes
         return Response(serializer.data)
 
     @action(
@@ -178,35 +178,43 @@ class UserViewSet(UserModelMixin):
     def subscribe(self, request, pk):
         author = get_object_or_404(User, id=pk)
         recipes_limit = request.query_params.get('recipes_limit', '')
-        serializer = UserWithRecipeSerializer(
-            author,
-            context={'request': request}
-        )
-        subscribe, is_created = Subscribe.objects.get_or_create(
-            user=request.user,
-            author=author
-        )
-        if request.method == 'GET':
-            if is_created:
-                if not recipes_limit.isdigit():
-                    return Response(
-                        serializer.data, status=status.HTTP_201_CREATED)
-                recipes = serializer.data['recipes'][:int(recipes_limit)]
-                serializer.data['recipes'] = recipes
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        subscribe.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            subscribe = Subscribe.objects.get(
+                user=request.user,
+                author=author
+            )
+        except Subscribe.DoesNotExist:
+            subscribe = None
+
+        if request.method == 'GET' and not subscribe:
+            Subscribe.objects.create(user=request.user, author=author)
+            serializer = UserWithRecipeSerializer(
+                author,
+                context={'request': request}
+            )
+            serialized_data = serializer.data
+            if not recipes_limit.isdigit():
+                return Response(
+                    serialized_data, status=status.HTTP_201_CREATED)
+            recipes = serializer.data['recipes'][:int(recipes_limit)]
+            serialized_data['recipes'] = recipes
+            return Response(serialized_data, status=status.HTTP_201_CREATED)
+        elif request.method == 'DELETE' and subscribe:
+            subscribe.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 class ObtainAuthToken(APIView):
-    permission_classes = [AnonUserPermission]
+    permission_classes = [AnonUserPermission,]
 
     def post(self, request):
         serializer = EmailTokenLogin(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = get_object_or_404(User, email=serializer.data.get('email'))
-        check_password = user.check_password(serializer.data.get('password'))
+        user = get_object_or_404(
+            User, email=serializer.validated_data.get('email'))
+        check_password = user.check_password(
+            serializer.validated_data.get('password'))
         if not check_password:
             return Response(
                 data={'message': 'Пароль не совпадает'},

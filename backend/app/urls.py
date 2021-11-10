@@ -1,15 +1,8 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import (
-    RecipeViewSet,
-    TagViewSet,
-    IngredientViewSet,
-    ObtainAuthToken,
-    Logout,
-    UserViewSet
-)
-
+from .views import (IngredientViewSet, Logout, ObtainAuthToken, RecipeViewSet,
+                    TagViewSet, UserViewSet)
 
 router = DefaultRouter()
 
@@ -20,7 +13,7 @@ router.register('users', UserViewSet)
 
 
 urlpatterns = [
-    path('token/login/', ObtainAuthToken.as_view()),
-    path('token/logout/', Logout.as_view()),
+    path('token/login/', ObtainAuthToken.as_view(), name='get_token'),
+    path('token/logout/', Logout.as_view(), name='delete_token'),
     path('', include(router.urls)),
 ]

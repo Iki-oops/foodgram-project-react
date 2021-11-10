@@ -7,12 +7,10 @@ from .models import (
     Subscribe,
     Tag,
     RecipeIngredient,
-    RecipeTag,
     Shopping
 )
 
 
-admin.site.register(RecipeTag)
 admin.site.register(RecipeIngredient)
 admin.site.register(Subscribe)
 admin.site.register(Shopping)
