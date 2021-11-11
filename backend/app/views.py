@@ -1,3 +1,4 @@
+from django.db.utils import IntegrityError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -58,25 +59,27 @@ class RecipeViewSet(viewsets.ModelViewSet):
         permission_classes=[permissions.IsAuthenticated,])
     def favorite(self, request, pk):
         recipe = get_object_or_404(Recipe, id=pk)
-        try:
-            favorite = Favorite.objects.get(
-                user=request.user,
-                recipe=recipe
-            )
-        except Favorite.DoesNotExist:
-            favorite = None
 
-        if request.method == 'GET' and not favorite:
-            favorite = Favorite.objects.create(
-                user=request.user,
-                recipe=recipe
-            )
+        if request.method == 'GET':
+            try:
+                favorite = Favorite.objects.create(
+                    user=request.user,
+                    recipe=recipe
+                )
+            except IntegrityError:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             serializer = FavoriteSerializer(favorite)
             return Response(data=serializer.data, status=status.HTTP_201_CREATED)
-        elif request.method == 'DELETE' and favorite:
+        elif request.method == 'DELETE':
+            try:
+                favorite = Favorite.objects.get(
+                    user=request.user,
+                    recipe=recipe
+                )
+            except Favorite.DoesNotExist:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             favorite.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
     
     @action(
         methods=['GET'],
@@ -96,22 +99,25 @@ class RecipeViewSet(viewsets.ModelViewSet):
         permission_classes=[permissions.IsAuthenticated,])
     def shopping_cart(self, request, pk):
         recipe = get_object_or_404(Recipe, id=pk)
-        try:
-            shopping = Shopping.objects.get(
-                user=request.user,
-                recipe=recipe
-            )
-        except Shopping.DoesNotExist:
-            shopping = None
 
-        if request.method == 'GET' and not shopping:
-            shopping = Shopping.objects.create(
-                user = request.user,
-                recipe=recipe
-            )
+        if request.method == 'GET':
+            try:
+                shopping = Shopping.objects.create(
+                    user = request.user,
+                    recipe=recipe
+                )
+            except IntegrityError:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             serializer = AddRecipeInShoppingSerializer(shopping)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        elif request.method == 'DELETE' and shopping:
+        elif request.method == 'DELETE':
+            try:
+                shopping = Shopping.objects.get(
+                    user=request.user,
+                    recipe=recipe
+                )
+            except Shopping.DoesNotExist:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             shopping.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -186,8 +192,11 @@ class UserViewSet(UserModelMixin):
         except Subscribe.DoesNotExist:
             subscribe = None
 
-        if request.method == 'GET' and not subscribe:
-            Subscribe.objects.create(user=request.user, author=author)
+        if request.method == 'GET':
+            try:
+                Subscribe.objects.create(user=request.user, author=author)
+            except IntegrityError:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             serializer = UserWithRecipeSerializer(
                 author,
                 context={'request': request}
@@ -199,10 +208,16 @@ class UserViewSet(UserModelMixin):
             recipes = serializer.data['recipes'][:int(recipes_limit)]
             serialized_data['recipes'] = recipes
             return Response(serialized_data, status=status.HTTP_201_CREATED)
-        elif request.method == 'DELETE' and subscribe:
+        elif request.method == 'DELETE':
+            try:
+                subscribe = Subscribe.objects.get(
+                    user=request.user,
+                    author=author
+                )
+            except Subscribe.DoesNotExist:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             subscribe.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 class ObtainAuthToken(APIView):
