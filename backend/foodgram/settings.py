@@ -5,7 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-SECRET_KEY = os.environ.get('SECRET_KEY', default='django-insecure-r@anxhs!l=w3mbn@3#@&17fu%*ek+%#2c1%xm463pxaukk)o=%')
+SECRET_KEY = os.environ.get('SECRET_KEY', default='default')
 
 DEBUG = False
 
@@ -73,10 +73,10 @@ WSGI_APPLICATION = 'foodgram.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', default='postgres'),
-        'USER': os.environ.get('POSTGRES_USER', default='postgres'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', default='ga44gad'),
-        'HOST': os.environ.get('DB_HOST', default='localhost'),
+        'NAME': os.environ.get('DB_NAME', default='default'),
+        'USER': os.environ.get('POSTGRES_USER', default='default'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', default='default'),
+        'HOST': os.environ.get('DB_HOST', default='default'),
         'PORT': os.environ.get('DB_PORT', default=5432),
     }
 }
