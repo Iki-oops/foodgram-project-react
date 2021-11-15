@@ -8,10 +8,10 @@ class RecipeFilter(django_filters.FilterSet):
         field_name='author__username',
         lookup_expr='icontains'
     )
-    is_favorited = django_filters.NumberFilter(
+    is_favorited = django_filters.CharFilter(
         method='filter_favorited'
     )
-    is_in_shopping_cart = django_filters.NumberFilter(
+    is_in_shopping_cart = django_filters.CharFilter(
         method='filter_in_shopping_cart'
     )
 
@@ -24,18 +24,20 @@ class RecipeFilter(django_filters.FilterSet):
         queryset = super().qs
         tags = dict(self.request.query_params).get('tags')
         if tags:
-            return queryset.filter(tags__slug__in=tags)
+            return queryset.filter(tags__slug__in=tags).distinct()
         return queryset
     
     def filter_favorited(self, queryset, name, value):
-        if value and not self.request.user.is_anonymous:
+        if (value != 'false' and value != '0'
+            and not self.request.user.is_anonymous):
             favorites = self.request.user.favorites.all()
             ids = favorites.values_list('recipe__id')
             return queryset.filter(id__in=ids)
         return queryset
 
     def filter_in_shopping_cart(self, queryset, name, value):
-        if value and not self.request.user.is_anonymous:
+        if (value != 'false' and value != '0'
+            and not self.request.user.is_anonymous):
             in_shopping_cart = self.request.user.shoppings.all()
             ids = in_shopping_cart.values_list('recipe__id')
             return queryset.filter(id__in=ids)

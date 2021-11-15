@@ -162,20 +162,24 @@ class UserViewSet(UserModelMixin):
         detail=False,
         permission_classes=[permissions.IsAuthenticated,])
     def subscriptions(self, request):
-        users = request.user.subscribes.all()
+        users = request.user.subscribers.all()
         recipes_limit = request.GET.get('recipes_limit', '')
         serializer = SubscriptionsRecipesSerializer(
             users,
             context={'request': request},
             many=True
         )
-        if not recipes_limit.isdigit():
+        page = self.paginate_queryset(users)
+        if page is not None:
+            if not recipes_limit.isdigit():
+                return self.get_paginated_response(serializer.data)
+            else:
+                for item in serializer.data:
+                    recipes = item['recipes'][:int(recipes_limit)]
+                    item['recipes'] = recipes
+                return self.get_paginated_response(serializer.data)
+        else:
             return Response(serializer.data)
-
-        for item in serializer.data:
-            recipes = item['recipes'][:int(recipes_limit)]
-            item['recipes'] = recipes
-        return Response(serializer.data)
 
     @action(
         methods=['GET', 'DELETE'],
@@ -184,13 +188,6 @@ class UserViewSet(UserModelMixin):
     def subscribe(self, request, pk):
         author = get_object_or_404(User, id=pk)
         recipes_limit = request.query_params.get('recipes_limit', '')
-        try:
-            subscribe = Subscribe.objects.get(
-                user=request.user,
-                author=author
-            )
-        except Subscribe.DoesNotExist:
-            subscribe = None
 
         if request.method == 'GET':
             try:
@@ -237,7 +234,7 @@ class ObtainAuthToken(APIView):
 
         token, created = Token.objects.get_or_create(user=user)
         content = {
-            'token': token.key,
+            'auth_token': token.key,
         }
         return Response(content)
 

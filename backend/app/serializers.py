@@ -42,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
         try:
             user = self.context['request'].user
             if not user.is_anonymous:
-                return user.subscribes.filter(user=obj.id).exists()
+                return user.subscribers.filter(author=obj.id).exists()
             else:
                 return False
         except KeyError:
@@ -53,14 +53,14 @@ class TagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tag
-        fields = ('pk', 'name', 'color', 'slug')
+        fields = ('id', 'name', 'color', 'slug')
 
 
 class IngredientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ingredient
-        fields = ('pk', 'name', 'measurement_unit')
+        fields = ('id', 'name', 'measurement_unit')
 
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
@@ -95,11 +95,12 @@ class RecipeSerializer(serializers.ModelSerializer):
     )
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
         fields = (
-            'pk',
+            'id',
             'tags',
             'author',
             'is_favorited',
@@ -108,6 +109,9 @@ class RecipeSerializer(serializers.ModelSerializer):
             'image', 'text',
             'cooking_time',
         )
+    
+    def get_image(self, obj):
+        return '/media/' + obj.image.name
 
     def get_is_favorited(self, obj):
         try:
@@ -150,10 +154,7 @@ class RecipePostSerializer(serializers.ModelSerializer):
         many=True,
         queryset=Tag.objects.all()
     )
-    image = Base64ImageField(
-        max_length=None,
-        use_url=True
-    )
+    image = Base64ImageField()
 
     class Meta:
         model = Recipe
@@ -227,14 +228,25 @@ class FavoriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Favorite
-        fields = ('pk', 'name', 'image', 'cooking_time')
+        fields = ('id', 'name', 'image', 'cooking_time')
 
 
-class ShortRecipeSerializer(serializers.ModelSerializer):
+class ShortRecipeSerializerForSubscriptions(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
-        fields = ('pk', 'name', 'image', 'cooking_time')
+        fields = ('id', 'name', 'image', 'cooking_time')
+    
+    def get_image(self, obj):
+        return '/media/' + obj.image.name
+
+
+class ShortRecipeSerializerForUsers(serializers.ModelSerializer):
+
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
 
 
 class ShoppingIngredientSerializer(serializers.ModelSerializer):
@@ -263,7 +275,7 @@ class ShoppingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Shopping
-        fields = ('pk', 'name', 'ingredients', 'cooking_time')
+        fields = ('id', 'name', 'ingredients', 'cooking_time')
 
 
 class AddRecipeInShoppingSerializer(serializers.ModelSerializer):
@@ -277,19 +289,34 @@ class AddRecipeInShoppingSerializer(serializers.ModelSerializer):
 
 
 class SubscriptionsRecipesSerializer(serializers.ModelSerializer):
+    id = serializers.PrimaryKeyRelatedField(
+        source='author.id',
+        queryset=User.objects.all()
+    )
     is_subscribed = serializers.SerializerMethodField()
-    email = serializers.CharField(source='user.email')
-    username = serializers.CharField(source='user.username')
-    first_name = serializers.CharField(source='user.first_name')
-    last_name = serializers.CharField(source='user.last_name')
-    recipes = ShortRecipeSerializer(many=True, source='user.recipes')
+    email = serializers.CharField(
+        source='author.email'
+    )
+    username = serializers.CharField(
+        source='author.username'
+    )
+    first_name = serializers.CharField(
+        source='author.first_name'
+    )
+    last_name = serializers.CharField(
+        source='author.last_name'
+    )
+    recipes = ShortRecipeSerializerForSubscriptions(
+        many=True,
+        source='author.recipes'
+    )
     recipes_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Subscribe
         fields = (
             'email',
-            'pk',
+            'id',
             'username',
             'first_name',
             'last_name',
@@ -302,7 +329,7 @@ class SubscriptionsRecipesSerializer(serializers.ModelSerializer):
         try:
             user = self.context['request'].user
             if not user.is_anonymous:
-                return user.subscribes.filter(user=obj.user.id).exists()
+                return user.subscribers.filter(author=obj.author.id).exists()
             else:
                 return False
         except KeyError:
@@ -315,13 +342,13 @@ class SubscriptionsRecipesSerializer(serializers.ModelSerializer):
 class UserWithRecipeSerializer(serializers.ModelSerializer):
     is_subscribed = serializers.SerializerMethodField()
     recipes_count = serializers.SerializerMethodField()
-    recipes = ShortRecipeSerializer(many=True)
+    recipes = ShortRecipeSerializerForSubscriptions(many=True)
 
     class Meta:
         model = User
         fields = (
             'email',
-            'pk',
+            'id',
             'username',
             'first_name',
             'last_name',
@@ -334,7 +361,7 @@ class UserWithRecipeSerializer(serializers.ModelSerializer):
         try:
             user = self.context['request'].user
             if not user.is_anonymous:
-                return user.subscribes.filter(user=obj.id).exists()
+                return user.subscribers.filter(author=obj.id).exists()
             else:
                 return False
         except KeyError:
