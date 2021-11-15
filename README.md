@@ -6,3 +6,5 @@
 - Docker
 - postgresql
 - nginx
+
+Ссылка на сайт - http://chef-nomto.tk/ или http://51.250.9.22/
