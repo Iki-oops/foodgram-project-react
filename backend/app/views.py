@@ -93,7 +93,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             recipes.append(f'{recipe["name"]} - {recipe["cooking_time"]} мин.')
             for ing in recipe['ingredients']:
                 if ing['name'] in ingredients:
-                    ingredients[ing['name']][0] += ingredients[ing['amount']]
+                    ingredients[ing['name']][0] += ing['amount']
                 else:
                     ingredients[ing['name']] = [
                         ing['amount'], ing['measurement_unit']
