@@ -5,7 +5,7 @@ from .models import Recipe
 
 class RecipeFilter(django_filters.FilterSet):
     author = django_filters.CharFilter(
-        field_name='author__username',
+        field_name='author__id',
         lookup_expr='icontains'
     )
     is_favorited = django_filters.CharFilter(

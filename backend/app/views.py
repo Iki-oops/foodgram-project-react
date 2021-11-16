@@ -46,7 +46,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     filterset_class = RecipeFilter
 
     def get_serializer_class(self):
-        if self.action in ('create', 'update'):
+        if self.action in ('create', 'update', 'partial_update'):
             return RecipePostSerializer
         return RecipeSerializer
 
@@ -88,7 +88,24 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def download_shopping_cart(self, request):
         queryset = request.user.shoppings.all()
         serializer = ShoppingSerializer(queryset, many=True)
-        return HttpResponse(serializer.data, headers={
+        recipes, ingredients = [], {}
+        for recipe in serializer.data:
+            recipes.append(f'{recipe["name"]} - {recipe["cooking_time"]} мин.')
+            for ing in recipe['ingredients']:
+                if ing['name'] in ingredients:
+                    ingredients[ing['name']][0] += ingredients[ing['amount']]
+                else:
+                    ingredients[ing['name']] = [
+                        ing['amount'], ing['measurement_unit']
+                    ]
+        nl = '\n'
+        ingredients = [
+            f'{key} - {value[0]} {value[1]}'
+            for key, value in ingredients.items()
+        ]
+        text = f'Рецепты:{nl}{nl.join(recipes)}{nl}' \
+               f'Ингредиенты:{nl}{nl.join(ingredients)}'
+        return HttpResponse(text, headers={
             'Content-Type': 'plain/text',
             'Content-Disposition': 'attachment; filename="file.txt"',
             })
